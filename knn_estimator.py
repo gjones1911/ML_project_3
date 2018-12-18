@@ -1,5 +1,5 @@
 from DataCleaner import *
-import pprint
+
 
 def get_distance_knn(data):
 
@@ -15,9 +15,6 @@ def get_distance_knn(data):
         main_dic[obs] = sorted(tmp_dic.items(), key=lambda kv: kv[1])
 
     return main_dic
-
-
-
 
 
 #           test    train
@@ -59,7 +56,6 @@ def knn_vote(new_dp, train_d, k_val):
 
 
 #             test     train
-#def knn_vote2(dis_dic, tst_idx, d_set, kval):
 def knn_vote2(dis_dic, tst_idx, trn_idx, d_set, kval):
     vote_dic = {}
     model = np.array(d_set)
@@ -123,8 +119,8 @@ def knn_vote3(dis_dic, tst_idx, model, kval):
 
     return vote_dic
 
+
 #             test     train
-#def knn_vote2(dis_dic, tst_idx, d_set, kval):
 def create_model2(dis_dic, tst_idx, trn_idx, d_set, kval):
     vote_dic = {}
     model = np.array(d_set)

@@ -1,8 +1,6 @@
-# import numpy as np
 from DataCleaner import *
 from DisplayMethods import *
 from performance_tests import *
-# from math import log2
 
 
 # ####################################################################################################################
@@ -314,7 +312,7 @@ def gini_index2(branch1, branch2, val, Nm, verbose=False):
     return true_val+false_val
 
 
-def entropy(row,val, Nm, verbose=False):
+def entropy(row, val, Nm, verbose=False):
     p1 = get_prob(row, val, Nm)
     p2 = (1.0-p1)
     if verbose:
@@ -392,7 +390,7 @@ def miss_class(row, val, Nm, verbose=False):
 
 
 # returns the miss classification error of the given split set
-def miss_class2(branch1, branch2, val, Nm, verbose=False):
+def mis_class(branch1, branch2, val, Nm, verbose=False):
     """
     row1 = branch1[:, len(branch1[0]) - 1].tolist()
     row2 = branch2[:, len(branch2[0]) - 1].tolist()
@@ -444,14 +442,7 @@ def best_split(array, clss, col_a, class_e='gini', verbose=False, imp_thrsh=None
         print('given to split')
         print(array)
 
-    #var_set = set()
-
     var_set = list(range(1, 11))
-
-    #for r in array:
-    #    for c in range(len(r)-1):
-    #        var_set.add(r[c])
-    #var_set = list(var_set)
 
     if verbose:
         print(var_set)
@@ -515,7 +506,7 @@ def best_split(array, clss, col_a, class_e='gini', verbose=False, imp_thrsh=None
                 if verbose:
                     print('imp: ', imp)
             elif class_e == 'miss class':
-                imp = miss_class2(tlnp, flnp, clss, Nm, verbose=verbose)
+                imp = mis_class(tlnp, flnp, clss, Nm, verbose=verbose)
                 if verbose:
                     print('imp: ', imp)
             if imp_thrsh is not None and 0 <= imp <= imp_thrsh:
@@ -543,22 +534,16 @@ def best_split(array, clss, col_a, class_e='gini', verbose=False, imp_thrsh=None
 
 
 # creates a decision tree based on the given data
-def make_tree(data, col_a, headers=None, type='root', error_type='gini', depth=0, depth_limit=None,
+def make_tree(data, col_a=None, headers=None, type='root', error_type='gini', depth=0, depth_limit=None,
               verbose=False, imp_thrsh=None):
-    # print('depth', depth, 'limit,', depth_limit)
-    if verbose:
-        print('making tree')
-        print(data)
 
-    # print('col_a')
-    # print(col_a)
-    # quit()
+    if col_a is None:
+        col_a = len(data[0])-1
+
+    new_depth = None
 
     # the class values
     clsss = list(unique_vals_list(data[:, col_a]))
-
-    # print('class vals:')
-    # print(clsss)
 
     # bi, bc, bv, t_l, f_l, f_pb, t_pb = best_split(node.get_data(),0, col_a)
     bi, bc, bv, t_l, f_l = best_split(data, clsss[0], col_a, class_e=error_type, imp_thrsh=imp_thrsh, verbose=verbose)
@@ -567,7 +552,7 @@ def make_tree(data, col_a, headers=None, type='root', error_type='gini', depth=0
         print('should not see this')
         node = Node(data, type='leaf', headers=headers, level=depth, class_column=col_a, classes=clsss)
         node.set_question(bc, bv)
-        return node
+        return node, depth
     if verbose:
         print(t_l)
         print(f_l)
@@ -576,29 +561,29 @@ def make_tree(data, col_a, headers=None, type='root', error_type='gini', depth=0
     if bc != -1:
         node = Node(data, type=type, headers=headers, level=depth, class_column=col_a, classes=clsss)
         node.set_question(bc, bv)
+
+    '''
     if bc == -1 or imp_thrsh is not None and imp_thrsh >= bi:
         if imp_thrsh is not None and bi <= imp_thrsh:
             if verbose:
                 print('It hit the threshold')
-        return Node(data, type='leaf', headers=headers, level=depth, class_column=col_a, classes=clsss)
-
-    if verbose:
-        print('col_a')
-        print(col_a)
+        return Node(data, type='leaf', headers=headers, level=depth, class_column=col_a, classes=clsss), depth
+    '''
 
     if len(f_l) > 0:
 
         fl = np.array(f_l)
         f_pb = get_prob(fl[:, len(fl[0])-1].tolist(), fl[0, len(fl[0])-1], len(fl[:, len(fl[0])-1].tolist()))
-        if f_pb == 0 or f_pb == 1 or (depth_limit is not None and depth_limit == depth+1):
+        if f_pb == 0 or f_pb == 1 or (depth_limit is not None and depth_limit == depth+1) or ( imp_thrsh is not None and bc <= imp_thrsh):
             if verbose:
                 print('found a false leaf')
             rchild = Node(fl, type='leaf', headers=headers, level=depth+1, class_column=col_a)
             node.set_child(rchild)
             node.set_false_child(rchild)
+            new_depthf = depth + 1
         else:
-            falsechild = make_tree(fl, col_a, headers=headers, type='internal', error_type=error_type, depth=depth+1,
-                                   verbose=verbose, imp_thrsh=imp_thrsh, depth_limit=depth_limit)
+            falsechild, new_depthf = make_tree(fl, col_a, headers=headers, type='internal', error_type=error_type, depth=depth+1,
+                                               verbose=verbose, imp_thrsh=imp_thrsh, depth_limit=depth_limit)
             if falsechild is not None:
                 node.set_child(falsechild)
                 node.set_false_child(falsechild)
@@ -606,17 +591,19 @@ def make_tree(data, col_a, headers=None, type='root', error_type='gini', depth=0
                 print('false child none')
     else:
         print('empty false list')
+
     if len(t_l) > 0:
         tl = np.array(t_l)
         t_pb = get_prob(tl[:, len(tl[0])-1].tolist(), tl[0, len(tl[0])-1], len(tl[:, len(tl[0])-1].tolist()))
-        if t_pb == 0 or t_pb == 1 or (depth_limit is not None and depth_limit == depth+1):
+        if t_pb == 0 or t_pb == 1 or (depth_limit is not None and depth_limit == depth+1) or ( imp_thrsh is not None and bc <= imp_thrsh):
             if verbose:
                 print('found a true leaf')
             lchild = Node(tl, type='leaf', headers=headers, level=depth+1, class_column=col_a)
             node.set_child(lchild)
             node.set_true_child(lchild)
+            new_deptht = depth+1
         else:
-            truechild = make_tree(tl, col_a, headers=headers, type='internal', error_type=error_type, depth=depth+1,
+            truechild, new_deptht = make_tree(tl, col_a, headers=headers, type='internal', error_type=error_type, depth=depth+1,
                                   verbose=verbose, imp_thrsh=imp_thrsh, depth_limit=depth_limit)
             if truechild is not None:
                 node.set_child(truechild)
@@ -626,12 +613,14 @@ def make_tree(data, col_a, headers=None, type='root', error_type='gini', depth=0
     else:
         print('empty true list')
 
-    return node
+    new_depth = max(new_depthf, new_deptht)
+
+    return node, new_depth
 
 
 # creates predictions based on the given data
 # using the root of a decision tree
-def process_data(data, root, verbose=False):
+def test_model(data, root, verbose=False):
 
     node = root
 
@@ -715,65 +704,19 @@ def max_dic_element(avg_err_dic, verbose=False, ret_key=True):
         return best
 
 
-# performs one round of testing for my decision tree methods for a single run
-def perform_tree_testing(data_np, test_num, error_type, class_col, depth_limit=None,
-                         imp_thresh=None, verbose=False, headers=[]):
-
-        err = 0
-
-        best_err, tr_best, ts_best, val_best, model_best = 0, list(), None, None, None
-
-        test_array = generate_testing_sets(len(data_np), test_num, p_train=.80, p_test=.10, p_val=.10, verbose=verbose)
-
-        for t in range(test_num):
-            print('                                                             run number {:d}'.format(t + 1))
-
-            tr, ts, vs = test_array[0][t], test_array[1][t], test_array[2][t]
-            train_set = np.array(get_cross_array(data_np, tr))
-            test_set = np.array(get_cross_array(data_np, ts))
-
-            if len(vs) != 0:
-                val_set = np.array(get_cross_array(data_np, vs))
-
-            # root = make_tree(train_set, list(range(0, len(train_set[0])-1)), headers=headers, error_type='gini' )
-            # root = make_tree(train_set, list(range(0, len(data_np[0]) - 1)),
-            #                 headers=headers, error_type=error_type, depth_limit=None, imp_thrsh=None)
-
-            root = make_tree(train_set, class_col,
-                             headers=headers, error_type=error_type, depth_limit=None, imp_thrsh=None)
-
-            # predictions, actual = process_data(test_set, root, verbose=False)
-            # err += calculate_error(predictions, actual)
-            predictions, actual, err = test_model(test_set, root)
-
-            if err > best_err:
-                # best_err[depth_limit] = np.around(err,2)
-                best_err = err
-                tr_best = list(map(int, tr))
-                ts_best= test_set
-                val_best= val_set
-                model_best = root
-
-        # psum_dic[depth_limit] = np.around(psum_dic[depth_limit]/test_num, 2)
-        avg_err = err / test_num
-
-        print(np.around(avg_err, 6))
-
-        return best_err, tr_best, ts_best, val_best, model_best, avg_err
-
-
 # performs series of testing runs(test_num) for my decision tree methods using a depth limit
-def perform_tree_testing_depth_limit(data_np, depth_l, test_num, error_type, class_column,
-                                     verbose=False, headers=[]):
+def perform_tree_testing_depth_limit(data_np, depth_l, error_type='entropy', class_column=None, verbose=False,
+                                     headers=[]):
 
     print('\nerror type', error_type)
-
-    stat_labels = ['acc', 'sensitivity', 'precision', 'TNR', 'F1']
+    print('Creating and testing model decision trees using different depth limits...')
 
     trn_cm = {}
     test_cm = {}
     trn_per = {}
     test_per = {}
+
+    depth_o_bst = {}
 
     psum_dic = {}
     psum_dic[1] = 1
@@ -785,11 +728,10 @@ def perform_tree_testing_depth_limit(data_np, depth_l, test_num, error_type, cla
     ts_dic = {}
     val_dic = {}
     model_dic = {2: None, 8: None, 17: None, 33: None}
-    err_avg = {2: 0, 8: 0, 17: 0, 33: 0}
 
     # test_array = generate_testing_sets(len(data_np), test_num, p_train=.80, p_test=.15, p_val=.05, verbose=verbose)
-    test_array = generate_testing_sets(len(data_np), test_num, p_train=.80, p_test=.10, p_val=.10, verbose=verbose)
-    tr, ts, vs = test_array[0][test_num-1], test_array[1][test_num-1], test_array[2][test_num-1]
+    test_array = generate_testing_sets(len(data_np), 1, p_train=.80, p_test=.10, p_val=.10, verbose=verbose)
+    tr, ts, vs = test_array[0][0], test_array[1][0], test_array[2][0]
     train_set = np.array(get_cross_array(data_np, tr))
     test_set = np.array(get_cross_array(data_np, ts))
     if len(vs) != 0:
@@ -800,34 +742,23 @@ def perform_tree_testing_depth_limit(data_np, depth_l, test_num, error_type, cla
             print(
                 '----------------------------------------------------------------->>  depth limit {:d}'.format(depth_limit))
 
-        err = 0
+        root, tree_depth = make_tree(train_set, class_column,
+                         headers=headers, error_type=error_type, depth_limit=depth_limit, imp_thrsh=None, depth=0)
 
-        root = make_tree(train_set, class_column,
-                         headers=headers, error_type=error_type, depth_limit=depth_limit, imp_thrsh=None)
+        depth_o_bst[depth_limit] = tree_depth
 
-        #predictions, actual, err = test_model(train_set, root)
+        print('tree depth is : ', tree_depth)
+
         predictions, actual = test_model(train_set, root)
         cm, performance_array = confusion_matrix(predictions, actual)
         trn_cm[depth_limit] = cm
         trn_per[depth_limit] = performance_array
 
-        #predictions, actual, err = test_model(test_set, root)
         predictions, actual = test_model(test_set, root)
         cm, performance_array = confusion_matrix(predictions, actual)
         c_mean = np.mean(performance_array, dtype=np.float64)
-        #c_mean = np.sum(performance_array, dtype=np.float64)
         test_cm[depth_limit] = cm
         test_per[depth_limit] = performance_array
-
-        '''
-        print('average at {:f} for depth limit {:d}'.format(c_mean, depth_limit))
-        print('performance array')
-        for idx in range(len(performance_array)):
-
-            print(stat_labels[idx],': ', performance_array[idx])
-
-        best_err[depth_limit] = err
-        '''
 
         # if err > best_err[depth_limit]:
         if c_mean > best_mean_acc:
@@ -840,10 +771,6 @@ def perform_tree_testing_depth_limit(data_np, depth_l, test_num, error_type, cla
             val_dic[depth_limit] = val_set
             model_dic[depth_limit] = root
 
-        #psum_dic[depth_limit] = psum_dic[depth_limit] / test_num
-
-        #print(np.around(psum_dic[depth_limit], 6))
-
     performance_array = [[trn_cm, trn_per],
                          [test_cm, test_per]]
     tr_ts_vl_array = [train_dic,    # 0
@@ -851,14 +778,14 @@ def perform_tree_testing_depth_limit(data_np, depth_l, test_num, error_type, cla
                       ts_dic,       # 2
                       val_dic]      # 3
 
-    #return best_mean_acc, best_err, train_dic, tr_dic, ts_dic, val_dic, model_dic, best_depth
-    return best_mean_acc, best_err, tr_ts_vl_array, model_dic, best_depth, performance_array
+    return best_mean_acc, depth_o_bst, tr_ts_vl_array, model_dic, best_depth, performance_array
 
 
 # performs series of testing runs(test_num) for my decision tree methods using a impurity threshold
-def perform_tree_testing_imp_limit(data_np, imp_thl, test_num, error_type, class_column,
-                                   verbose=False, headers=[]):
+def perform_tree_testing_imp_limit(data_np, imp_thl, error_type='entropy', class_column=None, verbose=False,
+                                   headers=[]):
     print('\nerror type', error_type)
+    print('Creating and testing model decision trees using different impurity thresholds...')
 
     stat_labels = ['acc', 'sensitivity', 'precision', 'TNR', 'F1']
 
@@ -869,30 +796,29 @@ def perform_tree_testing_imp_limit(data_np, imp_thl, test_num, error_type, class
 
     best_imp = 0
 
-    psum_dic = {}
     best_err = {}
+    depth_o_bst = {}
     best_mean_acc = 0
     tr_dic = {}
     train_dic = {}
     ts_dic = {}
     val_dic = {}
-    model_dic = {2: None, 8: None, 17: None, 33: None}
-    err_avg = {2: 0, 8: 0, 17: 0, 33: 0}
+    model_dic = {}
 
+    last_depth = 0
 
-    test_array = generate_testing_sets(len(data_np), test_num, p_train=.80, p_test=.10, p_val=.10, verbose=verbose)
-    tr, ts, vs = test_array[0][test_num-1], test_array[1][test_num-1], test_array[2][test_num-1]
+    test_array = generate_testing_sets(len(data_np), 1, p_train=.80, p_test=.10, p_val=.10, verbose=verbose)
+    tr, ts, vs = test_array[0][0], test_array[1][0], test_array[2][0]
     train_set = np.array(get_cross_array(data_np, tr))
     test_set = np.array(get_cross_array(data_np, ts))
-    if len(vs) != 0:
-        val_set = np.array(get_cross_array(data_np, vs))
+    val_set = np.array(get_cross_array(data_np, vs))
 
     for imp_thrsh in imp_thl:
-        if verbose:
+        #if verbose:
+        if True:
             print(
                 '--------------------------------------------------------->>impurity threshold {:f}'.format(imp_thrsh))
-        for t in range(test_num):
-            #print('                                                             run number {:d}'.format(t + 1))
+        for t in range(1):
             '''
             tr, ts, vs = test_array[0][t], test_array[1][t], test_array[2][t]
             train_set = np.array(get_cross_array(data_np, tr))
@@ -901,40 +827,45 @@ def perform_tree_testing_imp_limit(data_np, imp_thl, test_num, error_type, class
                 val_set = np.array(get_cross_array(data_np, vs))
             '''
 
-            # root = make_tree(train_set, list(range(0, len(train_set[0])-1)), headers=headers, error_type='gini' )
-            root = make_tree(train_set, class_column,
-                             headers=headers, error_type=error_type, depth_limit=None, imp_thrsh=imp_thrsh)
+            root, tree_depth = make_tree(train_set, class_column,
+                                         headers=headers, error_type=error_type, depth_limit=None, imp_thrsh=imp_thrsh)
 
-            # test on training set and store results for this limit
-            #predictions, actual, err = test_model(train_set, root)
+            depth_o_bst[imp_thrsh] = tree_depth
+
+            if tree_depth != last_depth:
+                print('tree depth is : ', tree_depth)
+
+            if tree_depth == 0:
+                continue
+
             predictions, actual = test_model(train_set, root)
-            cm, performance_array = confusion_matrix(predictions, actual)
-            trn_cm[imp_thrsh] = cm
-            trn_per[imp_thrsh] = performance_array
+            cmtr, performance_arraytr = confusion_matrix(predictions, actual)
+            if last_depth != tree_depth:
+                trn_cm[imp_thrsh] = cmtr
+                trn_per[imp_thrsh] = performance_arraytr
 
             # test on validation set and store results for this limit
-            #predictions, actual, err = test_model(test_set, root)
             predictions, actual = test_model(test_set, root)
-            cm, performance_array = confusion_matrix(predictions, actual)
-            c_mean = np.mean(performance_array, dtype=np.float64)
-            #c_mean = np.sum(performance_array, dtype=np.float64)
-            test_cm[imp_thrsh] = cm
-            test_per[imp_thrsh] = performance_array
-            #psum_dic[imp_thrsh] += err
+            cmts, performance_arrayts = confusion_matrix(predictions, actual)
+            c_mean = np.mean(performance_arrayts, dtype=np.float64)
+            if last_depth != tree_depth:
+                test_cm[imp_thrsh] = cmts
+                test_per[imp_thrsh] = performance_arrayts
+                last_depth = tree_depth
 
             if verbose:
                 print('average at {:f} for impurity threshold {:f}'.format(c_mean, imp_thrsh))
                 print('performance array')
-                for idx in range(len(performance_array)):
-                    print(stat_labels[idx], ': ', performance_array[idx])
+                for idx in range(len(performance_arrayts)):
+                    print(stat_labels[idx], ': ', performance_arrayts[idx])
 
-            #best_err[imp_thrsh] = 0
-
-            #if err > best_err[imp_thrsh]:
             if c_mean > best_mean_acc:
                 print('best imp is now: ', imp_thrsh)
-                best_imp = imp_thrsh
-                #best_err[imp_thrsh] = err
+                trn_cm[imp_thrsh] = cmtr
+                trn_per[imp_thrsh] = performance_arraytr
+                test_cm[imp_thrsh] = cmts
+                test_per[imp_thrsh] = performance_arrayts
+
                 best_mean_acc = c_mean
                 best_imp = imp_thrsh
                 train_dic[imp_thrsh] = root
@@ -943,9 +874,6 @@ def perform_tree_testing_imp_limit(data_np, imp_thl, test_num, error_type, class
                 val_dic[imp_thrsh] = val_set
                 model_dic[imp_thrsh] = root
 
-        # psum_dic[imp_thrsh] = psum_dic[imp_thrsh] / test_num
-
-        # print(np.around(psum_dic[imp_thrsh], 6))
     performance_array = [[trn_cm, trn_per],
                          [test_cm, test_per]]
     tr_ts_vl_array = [train_dic,  # 0
@@ -953,8 +881,7 @@ def perform_tree_testing_imp_limit(data_np, imp_thl, test_num, error_type, class
                       ts_dic,     # 2
                       val_dic]    # 3
 
-    # return best_mean_acc, best_err, train_dic, tr_dic, ts_dic, val_dic, model_dic, psum_dic
-    return best_mean_acc, best_err, tr_ts_vl_array, model_dic, best_imp, performance_array
+    return best_mean_acc, depth_o_bst, tr_ts_vl_array, model_dic, best_imp, performance_array
 
 
 # can be used to display results of testing but also returns the best avg accuracy
@@ -999,125 +926,39 @@ def display_result(best_err, avg_er):
     return
 
 
-# uses given model to predict class of rows in test set
-# returns an array of predictions and an array of the actual values
-def test_model(test_set, model, verbose=False):
-    predictions, actual = process_data(test_set, model, verbose=verbose)
-    #accuracy = calculate_error(predictions, actual)
-    #return predictions, actual, accuracy
-    return predictions, actual
-
-
 # used to run training and testing of a decision tree and tests tree on validation set and returns
 # confusion matrix and basic stats of model
-def create_test_d_tree(data_np, test_num, error_type, er_idx, class_column, auto_run, limit_type, depth_limit,
-                       imp_thrsh, headers):
-    bad = True
-    #bad = False
+def create_test_d_tree(data_np, er_idx, class_column, limit_type, depth_limit=None, imp_thrsh=None, headers=None):
 
-    if auto_run:
-        best_err, tr_best, ts_best, val_best, model_best, avg_err = perform_tree_testing(data_np,
-                                                                                         test_num,
-                                                                                         error_type[0],
-                                                                                         class_column,
-                                                                                         verbose=False,
-                                                                                         headers=headers,
-                                                                                         depth_limit=depth_limit,
-                                                                                         imp_thresh=imp_thrsh)
-        mod = model_best
-        display_result(best_err, avg_err)
+    error_type = ['entropy', 'gini', 'miss class']
 
-        # now test against validation
-        predictions, actual, accuracy = test_model(val_best, model_best)
+    if headers is None:
+        headers = list()
+        for i in range(len(data_np[0])):
+            headers.append(str(i))
 
+    if limit_type == 1 and depth_limit is None:
+        depth_limit = list(range(2,11))
+    elif limit_type == 2 and imp_thrsh is None:
+        imp_thrsh = list([.2, .19, .18, .17, .16, .15, .14, .13, .12, .11, .10, .09, .08, .07, .06, .05, .04,
+                          .03, .02, .01, .002, .0019, .0018, .0017, .0016, .0015, .0014, .0013, .0012, .0011, .0010,
+                          .0009, .0008, .0007, .0006, .0005, .0004, .0003, .0002, .0001])
 
-        # print("the validation set tested with an accuracy of {:2f}".format(accuracy))
-        # print('')
-        cm, performance_array = confusion_matrix(predictions, actual)
-        dis_cmplx_perorm(cm, performance_array)
-
-    elif limit_type == 1:
-        # print(depth_limit)
-
-        b_mu_ac, best_err, train_dic, tr_dic, ts_dic, val_dic, model_dic, best_depth = perform_tree_testing_depth_limit(data_np,
-                                                                                                             depth_limit,
-                                                                                                             test_num,
-                                                                                                             error_type[
-                                                                                                                 er_idx],
-                                                                                                             class_column,
-                                                                                                             verbose=False,
-                                                                                                             headers=headers)
-        #b_avg_depth, b_avg, b_single_depth, b_single_acc = display_results_mulit_test(best_err, psum_dic, depth_limit)
-
-        b_avg_depth, b_avg = max_dic_element(b_mu_ac, verbose=False)
-
-        mod = model_dic[b_avg_depth]
-
-        # trace_tree(mod)
-
-        #if bad:
-
-        predictions, actual, accuracy = test_model(val_dic[b_avg_depth], model_dic[b_avg_depth])
-
-        #else:
-        #    predictions, actual, accuracy = test_model(val_dic[b_single_depth], model_dic[b_single_depth])
-
-        print('The best average accuracy {:f} occured at depth {:d}'.format(b_avg, b_avg_depth))
-        #print('The best accuracy {:f} accured at depth {:d}'.format(b_single_acc, b_single_depth))
-        print("the validation set tested with an accuracy of {:2f}".format(accuracy))
-        print('')
-        cm, performance_array = confusion_matrix(predictions, actual)
-        dis_cmplx_perorm(cm, performance_array)
-
-    elif limit_type == 2:
-        b_mu_ac,best_err,train_dic,tr_dic,ts_dic,val_dic,model_dic,psum_dic = perform_tree_testing_imp_limit(data_np,
-                                                                                                           imp_thrsh,
-                                                                                                           test_num,
-                                                                                                           error_type[
-                                                                                                               er_idx],
-                                                                                                           class_column,
-                                                                                                           verbose=False,
-                                                                                                           headers=headers)
-
-        b_avg_depth, b_avg, b_single_depth, b_single_acc = display_results_mulit_test(best_err, psum_dic, imp_thrsh,
-                                                                                      imp=True)
-        mod = model_dic[b_avg_depth]
-
-        if bad:
-            predictions, actual, accuracy = test_model(val_dic[b_avg_depth], model_dic[b_avg_depth])
-        else:
-            predictions, actual, accuracy = test_model(val_dic[b_single_depth], model_dic[b_single_depth])
-
-        print('The best average accuracy {:f} occured at impurity threshold {:f}'.format(b_avg, b_avg_depth))
-        print('The best accuracy {:f} occured at impurity threshold {:f}'.format(b_single_acc, b_single_depth))
-        print("the validation set tested with an accuracy of {:2f}".format(accuracy))
-        print('')
-        cm, performance_array = confusion_matrix(predictions, actual)
-        dis_cmplx_perorm(cm, performance_array)
-
-    return accuracy, b_avg_depth, b_single_depth, mod
-
-
-# used to run training and testing of a decision tree and tests tree on validation set and returns
-# confusion matrix and basic stats of model
-def create_test_d_tree2(data_np, test_num, error_type, er_idx, class_column, limit_type, depth_limit,
-                       imp_thrsh, headers):
 
     # this uses a depth limit
-    if limit_type == 1:
+    if limit_type == 1 or imp_thrsh is None:
 
         # b_mu_ac, b_acc, tr_dic, tr_dic, ts_dic, val_dic, mod_dic, b_depth = perform_tree_testing_depth_limit(data_np,
-        b_mu_ac, b_acc, rsv_a, mod_dic, b_depth, p_a = perform_tree_testing_depth_limit(data_np,
-                                                                                        depth_limit,
-                                                                                        1,
-                                                                                        error_type[er_idx],
-                                                                                        class_column,
-                                                                                        verbose=False,
-                                                                                        headers=headers)
+        # b_mu_ac, b_acc, rsv_a, mod_dic, b_depth, p_a = perform_tree_testing_depth_limit(data_np,
+        b_mu_ac, b_tree_d, rsv_a, mod_dic, b_depth, p_a = perform_tree_testing_depth_limit(data_np,
+                                                                                           depth_limit,
+                                                                                           error_type[er_idx],
+                                                                                           class_column,
+                                                                                           verbose=False,
+                                                                                           headers=headers)
 
         trn_cm = p_a[0][0]
         trn_perf = p_a[0][1]
-
         val_cm = p_a[1][0]
         val_perf = p_a[1][1]
 
@@ -1126,7 +967,8 @@ def create_test_d_tree2(data_np, test_num, error_type, er_idx, class_column, lim
         validation_set = rsv_a[2]
         test_set = rsv_a[3]
 
-        b_avg_depth, b_avg = max_dic_element(b_acc, verbose=False)
+
+        #b_avg_depth, b_avg = max_dic_element(b_acc, verbose=False)
 
         mod = mod_dic[b_depth]
 
@@ -1140,30 +982,37 @@ def create_test_d_tree2(data_np, test_num, error_type, er_idx, class_column, lim
         print('                      Training set:\n')
         for d in range(2,11):
             print('Depth limit: ',d)
+            print('Depth of tree: ', b_tree_d[d])
             dis_cmplx_perorm(trn_cm[d], trn_perf[d])
         print('--------------------------------------------------------')
         print('--------------------------------------------------------')
         print('                      Validation set:\n')
         for d in range(2, 11):
             print('Depth limit: ',d)
+            print('Depth of tree: ', b_tree_d[d])
             dis_cmplx_perorm(val_cm[d], val_perf[d])
 
         print('--------------------------------------------------------')
         print('--------------------------------------------------------')
         print('                      Testing set:\n')
         print('Best tested depth limit: ', b_depth)
+        print('Depth of tree: ', b_tree_d[b_depth])
 
         predictions, actual = test_model(test_set[b_depth], mod)
         cm, performance_array = confusion_matrix(predictions, actual)
         dis_cmplx_perorm(cm, performance_array)
         accuracy = performance_array[0]
-        return accuracy, b_avg_depth, b_depth, mod
+        '''
+        print('look here ')
+        for p in performance_array:
+            print(np.around(p, 2))
+        '''
+        return accuracy, mod
 
     elif limit_type == 2:
 
-        b_mu_ac, b_acc, rsv_a, mod_dic, b_imp_tsh, p_a = perform_tree_testing_imp_limit(data_np,
+        b_mu_ac, b_tree_d, rsv_a, mod_dic, b_imp_tsh, p_a = perform_tree_testing_imp_limit(data_np,
                                                                                         imp_thrsh,
-                                                                                        1,
                                                                                         error_type[er_idx],
                                                                                         class_column,
                                                                                         verbose=False,
@@ -1180,7 +1029,6 @@ def create_test_d_tree2(data_np, test_num, error_type, er_idx, class_column, lim
         validation_set = rsv_a[2]
         test_set = rsv_a[3]
 
-        b_avg_imp, b_avg = max_dic_element(b_acc, verbose=False)
 
         print('best impurity threshold ', b_imp_tsh)
         print('len of rsv ', len(rsv_a))
@@ -1192,22 +1040,25 @@ def create_test_d_tree2(data_np, test_num, error_type, er_idx, class_column, lim
         print('--------------------------------------------------------')
         print('--------------------------------------------------------')
         print('                      Training set:\n')
-        #for d in range(2, 11):
-        for i in imp_thrsh:
+        #for i in imp_thrsh:
+        for i in trn_cm:
             print('Impurity threshold: ', i)
+            print('Depth of tree: ', b_tree_d[i])
             dis_cmplx_perorm(trn_cm[i], trn_perf[i])
         print('--------------------------------------------------------')
         print('--------------------------------------------------------')
         print('                      Validation set:\n')
-        #for d in range(2, 11):
-        for i in imp_thrsh:
+        #for i in imp_thrsh:
+        for i in val_cm:
             print('Impurity threshold: ', i)
+            print('Depth of tree: ', b_tree_d[i])
             dis_cmplx_perorm(val_cm[i], val_perf[i])
 
         print('--------------------------------------------------------')
         print('--------------------------------------------------------')
         print('                      Testing set:\n')
         print('Best tested impurity threshold: ', b_imp_tsh)
+        print('Depth of tree: ', b_tree_d[b_imp_tsh])
 
         predictions, actual = test_model(test_set[b_imp_tsh], mod)
         cm, performance_array = confusion_matrix(predictions, actual)
@@ -1216,26 +1067,9 @@ def create_test_d_tree2(data_np, test_num, error_type, er_idx, class_column, lim
         print('--------------------------------------------------------')
         print('--------------------------------------------------------')
         accuracy = performance_array[0]
-        return accuracy, b_avg_imp, b_imp_tsh, mod
+        return accuracy, mod
 
 
-def train_tree(file_name, dtype=np.int, class_col=None, depth_limit=set(range(2,11)), imp_thrsh=None,
-               headers=None, test_num=2, error_type=['entropy', 'gini', 'miss class'], er_idx=1,
-               limit_type=1):
-
-    data = np.array(load_data_file(file_name), dtype=dtype)
-
-    d_dim = data.shape
-    num_obs = d_dim[0]
-    num_attrib = d_dim[1]
-
-    if class_col is None:
-        class_col = num_attrib-1
-
-    ac, bad, bsd, model = create_test_d_tree(data, test_num, error_type, er_idx, class_col, False, limit_type,
-                                             depth_limit, imp_thrsh, headers)
-
-    return model
 # ###############################################################################################################
 # ###############################################################################################################
 # ###############################################################################################################

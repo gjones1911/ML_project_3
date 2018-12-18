@@ -1,5 +1,7 @@
 import sys
 from DisplayMethods import show_array
+from DataCleaner import multi_strip
+
 
 def generate_col_headers(num_col, alphabet=False, verbose=False, head_arry=None):
     headers = list()
@@ -73,7 +75,7 @@ def process_num_input(prompt=None, error=None, low_lim=None, high_lim=None):
     return test_num
 
 
-def process_limit_type():
+def process_limit_type2():
 
     while True:
         limit_type = int(input('What type of tree limitation would you like to use?:\n'
@@ -102,10 +104,11 @@ def process_limit_type():
                 imp_thrsh = list()
                 # for i in range(1,10):
                 strt = 20
-                for mul in range(0,2):
-                    for i in range(strt, 0, -1):
-                        imp_thrsh.append(i / (100*(10**mul)))
-                    strt = 9
+                mul = 0
+                #for mul in range(0,2):
+                for i in range(30, 0, -1):
+                    imp_thrsh.append(i / (100*(10**mul)))
+                    #strt = 9
                 break
             elif .20 >= imp_l >= .001:
                 imp_thrsh.append(imp_l)
@@ -115,6 +118,49 @@ def process_limit_type():
         else:
             print('There is no option {:d}'.format(limit_type))
 
+    return limit_type, depth_limit, imp_thrsh
+
+
+def process_limit_type():
+    depth_limit = None
+    imp_thrsh = None
+    while True:
+        limit_type = input('What type of tree limitation would you like to use?:\n '
+                           '                                            1) depth limit\n'
+                           '                                             2) impurity threshold ')
+
+        limit_type = int(limit_type)
+
+        if limit_type == 1:
+            depth_l = int(input('What depth limit would you like to use?:\n'
+                                '                                        1) enter -1 for a range 2->10\n'
+                                '                                        2) some  10 >= number >=2  '))
+
+            if depth_l == -1:
+                depth_limit = list(range(2, 11))
+                break
+            elif 10 >= depth_l >= 2:
+
+                depth_limit = list([depth_l])
+                break
+            else:
+                print('depth limit must be one of the allowed choices, no option for {:d}'.format(depth_l))
+        elif limit_type == 2:
+            imp_l = float(input('What impurity threshold would you like to use?:\n'
+                          '                                        1) enter -1 for a range .1->.9\n'
+                          '                                        2) some  .3 >= number >=.01  '))
+            if imp_l == -1:
+                imp_thrsh = list()
+                # for i in range(1,10):
+                for i in range(80, 0, -1):
+                    imp_thrsh.append(i / 100)
+                break
+            else:
+                imp_thrsh = list()
+                imp_thrsh.append(imp_l)
+                break
+        else:
+            print('There is no option {:d}'.format(limit_type))
     return limit_type, depth_limit, imp_thrsh
 
 
